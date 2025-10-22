@@ -109,6 +109,31 @@ impl Publisher {
         result
     }
 
+    pub fn publish_block_metadata(
+        &self,
+        ev: crate::BlockMetadataEvent,
+        wrap_messages: bool,
+        topic: &str,
+    ) -> Result<(), KafkaError> {
+        let temp_key;
+        let (key, buf) = if wrap_messages {
+            temp_key = self.copy_and_prepend(&ev.slot.to_le_bytes(), b'B');
+            (
+                &temp_key,
+                Self::encode_with_wrapper(EventMessage::Block(Box::new(ev))),
+            )
+        } else {
+            temp_key = ev.slot.to_le_bytes().to_vec();
+            (&temp_key, ev.encode_to_vec())
+        };
+        let record = BaseRecord::<Vec<u8>, _>::to(topic).key(key).payload(&buf);
+        let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
+        crate::prom::UPLOAD_BLOCKS_TOTAL
+            .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
+            .inc();
+        result
+    }
+
     fn encode_with_wrapper(message: EventMessage) -> Vec<u8> {
         MessageWrapper {
             event_message: Some(message),

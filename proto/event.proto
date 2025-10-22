@@ -221,10 +221,64 @@ message TransactionEvent {
   uint32 confirmation_count = 16;            // Number of confirmations
 }
 
+// Block metadata event - for chain_blocks table
+message BlockMetadataEvent {
+  uint64 slot = 1;                           // Slot number
+  string block_hash = 2;                     // Block hash (base58)
+  uint64 parent_slot = 3;                    // Parent slot number
+  string parent_block_hash = 4;              // Parent block hash (base58)
+  string leader = 5;                         // Block leader pubkey (base58)
+  uint32 executed_transaction_count = 6;     // Number of transactions in block
+  optional int64 block_time = 7;             // Unix timestamp
+  optional uint64 block_height = 8;          // Block height
+  repeated Reward rewards = 9;               // Block rewards
+  uint32 total_compute_units = 10;           // Total compute units consumed
+  uint64 total_fees = 11;                    // Total fees collected
+}
+
+// Log type enumeration
+enum LogType {
+  UNKNOWN = 0;
+  INVOKE = 1;      // "Program XXX invoke [N]"
+  LOG = 2;         // "Program log: XXX"
+  DATA = 3;        // "Program data: XXX"
+  SUCCESS = 4;     // "Program XXX success"
+  FAILED = 5;      // "Program XXX failed: XXX"
+  CONSUMED = 6;    // "Program XXX consumed N of M compute units"
+}
+
+// Program log event - for chain_program_logs table
+message ProgramLogEvent {
+  uint64 slot = 1;                           // Slot number
+  bytes tx_signature = 2;                    // Transaction signature
+  uint32 tx_index = 3;                       // Transaction index in block
+  string program_id = 4;                     // Program ID (base58)
+  string message = 5;                        // Log message content
+  uint32 log_index = 6;                      // Log index in transaction
+  uint32 depth = 7;                          // Call depth (1 = top level, 2+ = CPI)
+  LogType log_type = 8;                      // Type of log message
+}
+
+// Chain event (Anchor and custom events) - for chain_events table
+message ChainEvent {
+  uint64 slot = 1;                           // Slot number
+  bytes tx_signature = 2;                    // Transaction signature
+  uint32 tx_index = 3;                       // Transaction index in block
+  string program_id = 4;                     // Program that emitted the event
+  bytes event_discriminator = 5;             // Event discriminator (8 bytes)
+  string event_type = 6;                     // Event type name (optional, for known events)
+  bytes raw_data = 7;                        // Raw event data (Borsh encoded)
+  optional string json_payload = 8;          // JSON representation (if parseable)
+  uint32 log_index = 9;                      // Corresponding log index
+}
+
 message MessageWrapper {
   oneof event_message {
     UpdateAccountEvent account = 1;
     SlotStatusEvent slot = 2;
     TransactionEvent transaction = 3;
+    BlockMetadataEvent block = 4;            // New: block metadata
+    ProgramLogEvent program_log = 5;         // New: program logs
+    ChainEvent chain_event = 6;              // New: chain events
   }
 }

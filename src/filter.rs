@@ -29,8 +29,14 @@ pub struct Filter {
     pub update_account_topic: String,
     pub slot_status_topic: String,
     pub transaction_topic: String,
+    pub block_metadata_topic: String,
+    pub program_log_topic: String,
+    pub chain_event_topic: String,
 
     pub wrap_messages: bool,
+    pub extract_program_logs: bool,
+    pub extract_anchor_events: bool,
+    pub event_discriminators: HashSet<[u8; 8]>,
 }
 
 impl Filter {
@@ -58,8 +64,45 @@ impl Filter {
             update_account_topic: config.update_account_topic.clone(),
             slot_status_topic: config.slot_status_topic.clone(),
             transaction_topic: config.transaction_topic.clone(),
+            block_metadata_topic: config.block_metadata_topic.clone(),
+            program_log_topic: config.program_log_topic.clone(),
+            chain_event_topic: config.chain_event_topic.clone(),
 
             wrap_messages: config.wrap_messages,
+            extract_program_logs: config.extract_program_logs,
+            extract_anchor_events: config.extract_anchor_events,
+            event_discriminators: config
+                .event_discriminators
+                .iter()
+                .flat_map(|s| {
+                    // Parse hex string to 8-byte array
+                    if s.starts_with("0x") || s.starts_with("0X") {
+                        hex::decode(&s[2..])
+                            .ok()
+                            .and_then(|bytes| {
+                                if bytes.len() == 8 {
+                                    let mut arr = [0u8; 8];
+                                    arr.copy_from_slice(&bytes);
+                                    Some(arr)
+                                } else {
+                                    None
+                                }
+                            })
+                    } else {
+                        hex::decode(s)
+                            .ok()
+                            .and_then(|bytes| {
+                                if bytes.len() == 8 {
+                                    let mut arr = [0u8; 8];
+                                    arr.copy_from_slice(&bytes);
+                                    Some(arr)
+                                } else {
+                                    None
+                                }
+                            })
+                    }
+                })
+                .collect(),
         }
     }
 

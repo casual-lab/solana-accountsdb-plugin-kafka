@@ -108,6 +108,12 @@ pub struct ConfigFilter {
     pub slot_status_topic: String,
     /// Kafka topic to send transaction to.
     pub transaction_topic: String,
+    /// Kafka topic to send block metadata to.
+    pub block_metadata_topic: String,
+    /// Kafka topic to send program logs to.
+    pub program_log_topic: String,
+    /// Kafka topic to send chain events to.
+    pub chain_event_topic: String,
     /// List of programs to ignore.
     pub program_ignores: Vec<String>,
     /// List of programs to include
@@ -122,6 +128,12 @@ pub struct ConfigFilter {
     pub include_failed_transactions: bool,
     /// Wrap all event message in a single message type.
     pub wrap_messages: bool,
+    /// Extract program logs from transaction log messages.
+    pub extract_program_logs: bool,
+    /// Parse and extract Anchor events from program data logs.
+    pub extract_anchor_events: bool,
+    /// List of event discriminators to capture (hex strings).
+    pub event_discriminators: Vec<String>,
 }
 
 impl Default for ConfigFilter {
@@ -130,6 +142,9 @@ impl Default for ConfigFilter {
             update_account_topic: "".to_owned(),
             slot_status_topic: "".to_owned(),
             transaction_topic: "".to_owned(),
+            block_metadata_topic: "".to_owned(),
+            program_log_topic: "".to_owned(),
+            chain_event_topic: "".to_owned(),
             program_ignores: Vec::new(),
             program_filters: Vec::new(),
             account_filters: Vec::new(),
@@ -137,6 +152,9 @@ impl Default for ConfigFilter {
             include_vote_transactions: true,
             include_failed_transactions: true,
             wrap_messages: false,
+            extract_program_logs: false,
+            extract_anchor_events: false,
+            event_discriminators: Vec::new(),
         }
     }
 }

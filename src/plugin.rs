@@ -218,6 +218,57 @@ impl GeyserPlugin for KafkaPlugin {
             .iter()
             .any(|filter| !filter.transaction_topic.is_empty())
     }
+
+    fn notify_block_metadata(
+        &self,
+        blockinfo: agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaBlockInfoVersions,
+    ) -> PluginResult<()> {
+        use agave_geyser_plugin_interface::geyser_plugin_interface::ReplicaBlockInfoVersions;
+        
+        let info = match blockinfo {
+            ReplicaBlockInfoVersions::V0_0_1(_) | ReplicaBlockInfoVersions::V0_0_2(_) => {
+                return Ok(()); // Skip old versions
+            }
+            ReplicaBlockInfoVersions::V0_0_3(info) => info,
+            ReplicaBlockInfoVersions::V0_0_4(_info) => {
+                // V4 is similar to V3, we'll use V3 fields
+                // Note: V4 has different rewards structure, but we'll handle it separately if needed
+                return Ok(()); // For now, skip V4 to keep it simple
+            }
+        };
+
+        let publisher = self.unwrap_publisher();
+        
+        for filter in self.unwrap_filters() {
+            if !filter.block_metadata_topic.is_empty() {
+                let event = crate::BlockMetadataEvent {
+                    slot: info.slot,
+                    block_hash: info.blockhash.to_string(),
+                    parent_slot: info.parent_slot,
+                    parent_block_hash: info.parent_blockhash.to_string(),
+                    leader: String::new(), // Leader not available in block info
+                    executed_transaction_count: info.executed_transaction_count as u32,
+                    block_time: info.block_time,
+                    block_height: info.block_height,
+                    rewards: info.rewards.iter().map(|r| crate::Reward {
+                        pubkey: r.pubkey.clone(),
+                        lamports: r.lamports,
+                        post_balance: r.post_balance,
+                        reward_type: r.reward_type.map(|t| t as i32).unwrap_or(0),
+                        commission: r.commission.unwrap_or(0) as u32,
+                    }).collect(),
+                    total_compute_units: 0, // Not available in block metadata
+                    total_fees: 0, // Not available in block metadata
+                };
+
+                publisher
+                    .publish_block_metadata(event, filter.wrap_messages, &filter.block_metadata_topic)
+                    .map_err(|e| PluginError::Custom(Box::new(e)))?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl KafkaPlugin {

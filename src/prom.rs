@@ -40,6 +40,21 @@ lazy_static::lazy_static! {
         &["status"]
     ).unwrap();
 
+    pub static ref UPLOAD_BLOCKS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("upload_blocks_total", "Status of uploaded blocks"),
+        &["status"]
+    ).unwrap();
+
+    pub static ref UPLOAD_PROGRAM_LOGS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("upload_program_logs_total", "Status of uploaded program logs"),
+        &["status"]
+    ).unwrap();
+
+    pub static ref UPLOAD_EVENTS_TOTAL: IntCounterVec = IntCounterVec::new(
+        Opts::new("upload_events_total", "Status of uploaded chain events"),
+        &["status"]
+    ).unwrap();
+
     static ref KAFKA_STATS: GaugeVec = GaugeVec::new(
         Opts::new("kafka_stats", "librdkafka metrics"),
         &["broker", "metric"]
@@ -66,6 +81,9 @@ impl PrometheusService {
             register!(UPLOAD_ACCOUNTS_TOTAL);
             register!(UPLOAD_SLOTS_TOTAL);
             register!(UPLOAD_TRANSACTIONS_TOTAL);
+            register!(UPLOAD_BLOCKS_TOTAL);
+            register!(UPLOAD_PROGRAM_LOGS_TOTAL);
+            register!(UPLOAD_EVENTS_TOTAL);
             register!(KAFKA_STATS);
 
             for (key, value) in &[
