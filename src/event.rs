@@ -19,6 +19,9 @@ include!(concat!(
     "/blockdaemon.solana.accountsdb_plugin_kafka.types.rs"
 ));
 
+// Type aliases for clarity
+pub type ChainEventProto = ChainEvent;
+
 impl From<PluginSlotStatus> for SlotStatus {
     fn from(other: PluginSlotStatus) -> Self {
         match other {

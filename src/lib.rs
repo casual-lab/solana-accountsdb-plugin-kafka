@@ -17,6 +17,7 @@ use agave_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 mod config;
 mod event;
 mod filter;
+mod log_parser;
 mod plugin;
 mod prom;
 mod publisher;
@@ -26,6 +27,7 @@ pub use {
     config::{Config, ConfigFilter, Producer},
     event::*,
     filter::Filter,
+    log_parser::{ChainEvent, LogParser, LogType, ProgramLog},
     plugin::KafkaPlugin,
     prom::PrometheusService,
     publisher::Publisher,

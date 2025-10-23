@@ -195,10 +195,25 @@ impl GeyserPlugin for KafkaPlugin {
                     continue;
                 }
 
+                // Publish transaction event
                 let event = Self::build_transaction_event(slot, info);
                 publisher
                     .update_transaction(event, filter.wrap_messages, &filter.transaction_topic)
                     .map_err(|e| PluginError::TransactionUpdateError { msg: e.to_string() })?;
+
+                // Parse and publish program logs and events if enabled
+                if filter.extract_program_logs || filter.extract_anchor_events {
+                    if let Some(log_messages) = &info.transaction_status_meta.log_messages {
+                        self.process_transaction_logs(
+                            slot,
+                            info.signature.as_ref(),
+                            info.index as u32,
+                            log_messages,
+                            filter,
+                            publisher,
+                        )?;
+                    }
+                }
             }
         }
 
@@ -741,5 +756,72 @@ impl KafkaPlugin {
             SlotStatus::CreatedBank => 0,        // Early stage
             SlotStatus::Dead => 0,               // Abandoned fork
         }
+    }
+
+    /// Process transaction logs to extract program logs and events
+    fn process_transaction_logs(
+        &self,
+        slot: u64,
+        signature: &[u8],
+        tx_index: u32,
+        log_messages: &[String],
+        filter: &Filter,
+        publisher: &Publisher,
+    ) -> PluginResult<()> {
+        use crate::log_parser::LogParser;
+
+        // Create log parser with filter configuration
+        let parser = LogParser::new(
+            filter.event_discriminators.clone(),
+            filter.extract_program_logs,
+            filter.extract_anchor_events,
+        );
+
+        // Parse logs
+        let (program_logs, chain_events) = parser.parse_logs(log_messages);
+
+        // Publish program logs if enabled
+        if filter.extract_program_logs && !program_logs.is_empty() && !filter.program_log_topic.is_empty() {
+            for (log_index, program_log) in program_logs.into_iter().enumerate() {
+                let event = crate::ProgramLogEvent {
+                    slot,
+                    tx_signature: signature.to_vec(),
+                    tx_index,
+                    program_id: program_log.program_id.clone(),
+                    message: program_log.message.clone(),
+                    log_index: log_index as u32,
+                    depth: program_log.depth,
+                    log_type: program_log.log_type as i32,
+                };
+
+                publisher
+                    .publish_program_log(event, filter.wrap_messages, &filter.program_log_topic)
+                    .map_err(|e| PluginError::Custom(Box::new(e)))?;
+            }
+        }
+
+        // Publish chain events if enabled
+        if filter.extract_anchor_events && !chain_events.is_empty() && !filter.chain_event_topic.is_empty() {
+            for (log_index, chain_event) in chain_events.into_iter().enumerate() {
+                let event = crate::event::ChainEvent {
+                    slot,
+                    tx_signature: signature.to_vec(),
+                    tx_index,
+                    program_id: chain_event.program_id.clone(),
+                    event_discriminator: hex::decode(&chain_event.discriminator)
+                        .unwrap_or_else(|_| chain_event.discriminator.as_bytes().to_vec()),
+                    event_type: String::new(),  // Can be enhanced later with event registry
+                    raw_data: chain_event.data.clone(),
+                    json_payload: None,         // Can be enhanced later with Borsh deserialization
+                    log_index: log_index as u32,
+                };
+
+                publisher
+                    .publish_chain_event(event, filter.wrap_messages, &filter.chain_event_topic)
+                    .map_err(|e| PluginError::Custom(Box::new(e)))?;
+            }
+        }
+
+        Ok(())
     }
 }

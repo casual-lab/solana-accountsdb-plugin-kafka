@@ -14,7 +14,7 @@
 
 use {
     crate::{
-        message_wrapper::EventMessage::{self, Account, Slot, Transaction},
+        message_wrapper::EventMessage::{self, Account, Slot, Transaction, ProgramLog},
         prom::{
             StatsThreadedProducerContext, UPLOAD_ACCOUNTS_TOTAL, UPLOAD_SLOTS_TOTAL,
             UPLOAD_TRANSACTIONS_TOTAL,
@@ -146,6 +146,54 @@ impl Publisher {
         temp_key.push(prefix);
         temp_key.extend_from_slice(data);
         temp_key
+    }
+
+    pub fn publish_program_log(
+        &self,
+        ev: crate::ProgramLogEvent,
+        wrap_messages: bool,
+        topic: &str,
+    ) -> Result<(), KafkaError> {
+        let temp_key;
+        let (key, buf) = if wrap_messages {
+            temp_key = self.copy_and_prepend(ev.tx_signature.as_slice(), b'L');
+            (
+                &temp_key,
+                Self::encode_with_wrapper(ProgramLog(Box::new(ev))),
+            )
+        } else {
+            (&ev.tx_signature, ev.encode_to_vec())
+        };
+        let record = BaseRecord::<Vec<u8>, _>::to(topic).key(key).payload(&buf);
+        let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
+        crate::prom::UPLOAD_PROGRAM_LOGS_TOTAL
+            .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
+            .inc();
+        result
+    }
+
+    pub fn publish_chain_event(
+        &self,
+        ev: crate::event::ChainEvent,
+        wrap_messages: bool,
+        topic: &str,
+    ) -> Result<(), KafkaError> {
+        let temp_key;
+        let (key, buf) = if wrap_messages {
+            temp_key = self.copy_and_prepend(ev.tx_signature.as_slice(), b'E');
+            (
+                &temp_key,
+                Self::encode_with_wrapper(EventMessage::ChainEvent(Box::new(ev))),
+            )
+        } else {
+            (&ev.tx_signature, ev.encode_to_vec())
+        };
+        let record = BaseRecord::<Vec<u8>, _>::to(topic).key(key).payload(&buf);
+        let result = self.producer.send(record).map(|_| ()).map_err(|(e, _)| e);
+        crate::prom::UPLOAD_EVENTS_TOTAL
+            .with_label_values(&[if result.is_ok() { "success" } else { "failed" }])
+            .inc();
+        result
     }
 }
 
